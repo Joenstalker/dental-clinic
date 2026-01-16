@@ -1,0 +1,235 @@
+@include('dentist.layout.header')
+
+<body class="hold-transition sidebar-mini">
+  <div class="wrapper">
+
+    @include('dentist.layout.navbar')
+
+    @include('dentist.layout.sidebar')
+
+    <!-- Content Wrapper. Contains page content -->
+    <div class="content-wrapper">
+      <!-- Content Header (Page header) -->
+      <div class="content-header">
+        <div class="container-fluid">
+          <div class="row mb-2">
+            <div class="col-sm-6">
+              <h1 class="m-0">My Sessions</h1>
+            </div><!-- /.col -->
+            <div class="col-sm-6 text-right">
+              <!-- Add Session Button -->
+              <button class="btn btn-primary" data-toggle="modal" data-target="#addSessionModal">
+                <i class="fas fa-plus"></i> Add Session
+              </button>
+            </div><!-- /.col -->
+          </div><!-- /.row -->
+        </div><!-- /.container-fluid -->
+      </div>
+      <!-- /.content-header -->
+
+      <!-- Main content -->
+    <section class="content">
+        <div class="container-fluid">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Session Title</th>
+                                <th>Price</th>
+                                <th>Schedule Date</th>
+                                <th>Number of Join</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($sessions as $session)
+                            <tr>
+                                <td>{{ $session->session_title }}</td>
+                                <td>₱{{$session->price}}.00</td>
+                                <td>{{ \Carbon\Carbon::parse($session->schedule_date)->format('F j, Y') }}</td>
+                                <td>{{ $session->memberCount() }}/{{$session->number_of_member}}</td>
+                                <td>
+                                    <!-- The 'View' button triggers the modal, we pass the session ID -->
+                                    <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#viewMembersModal" onclick="setModalContent({{ $session->id }})">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                    <form action="{{ route('dentist.cancel-session') }}" method="POST" style="display:inline;">
+                                      @csrf
+                                      <input type="hidden" name="session_id" value="{{ $session->id }}">
+                                      <button type="submit" class="btn btn-danger" onclick="event.preventDefault(); cancelSession(event, this);">
+                                          <i class="fas fa-times"></i> Cancel
+                                      </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- /.container-fluid -->
+    </section>
+      <!-- /.content -->
+
+      <!-- Add Session Modal -->
+      <div class="modal fade" id="addSessionModal" tabindex="-1" role="dialog" aria-labelledby="addSessionModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="addSessionModalLabel">Add Session</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <form action="{{route('dentist.add-session')}}" method="post">
+              @csrf
+              <div class="modal-body">
+                <div class="form-group">
+                  <label for="session_title">Session Title (Service) <span class="text-danger">*</span></label>
+                  <select class="form-control" id="session_title" name="session_title" required onchange="updatePriceFromService()">
+                    <option value="">-- Select a Service --</option>
+                    @foreach($services ?? [] as $service)
+                      <option value="{{ $service->service }}" data-price="{{ $service->price }}">{{ $service->service }} (₱{{ number_format($service->price, 2) }})</option>
+                    @endforeach
+                    <option value="custom">-- Custom Service --</option>
+                  </select>
+                  <small class="form-text text-muted">Select from predefined services or choose "Custom Service" to enter your own</small>
+                </div>
+                <div class="form-group" id="customServiceGroup" style="display: none;">
+                  <label for="custom_session_title">Custom Service Name</label>
+                  <input type="text" class="form-control" id="custom_session_title" name="custom_session_title" placeholder="Enter custom service name">
+                </div>
+                <div class="form-group">
+                  <label for="schedule_date">Schedule Date <span class="text-danger">*</span></label>
+                  <input type="date" class="form-control" id="schedule_date" name="schedule_date" required min="{{ now()->addDay()->toDateString() }}">
+                </div>
+                <div class="form-group">
+                  <label for="number_of_member">Maximum Number of Participants <span class="text-danger">*</span></label>
+                  <input type="number" min="1" max="19" class="form-control" id="number_of_member" name="number_of_member" required pattern="[0-9]+">
+                </div>
+                <div class="form-group">
+                  <label for="price">Price (₱) <span class="text-danger">*</span></label>
+                  <input type="number" min="0" step="0.01" class="form-control" id="price" name="price" required>
+                  <small class="form-text text-muted">Price will auto-fill when you select a service</small>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-primary">Add Session</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- /.content-wrapper -->
+
+<!-- Modal for Viewing Members -->
+<div class="modal fade" id="viewMembersModal" tabindex="-1" aria-labelledby="viewMembersModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewMembersModalLabel">Members Joined</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+            </tr>
+          </thead>
+          <tbody id="members-table-body">
+            <!-- Members will be dynamically loaded here -->
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+    @include('dentist.layout.footer')
+  </div>
+
+  <script>
+    // Pass the session data from PHP to JavaScript
+    const sessions = @json($sessions);
+
+    function setModalContent(sessionId) {
+        // Clear the current table body
+        const membersTableBody = document.getElementById('members-table-body');
+        membersTableBody.innerHTML = '';
+
+        // Find the session by its ID
+        const session = sessions.find(s => s.id === sessionId);
+
+        if (session && session.members.length > 0) {
+            // Loop through each member and add a row to the table
+            session.members.forEach(member => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${member.user.full_name}</td>
+                    <td>${member.user.email}</td>
+                `;
+                membersTableBody.appendChild(row);
+            });
+        } else {
+            // If no members, display a message
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = '<td colspan="2">No members joined</td>';
+            membersTableBody.appendChild(emptyRow);
+        }
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    @if (session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: '{{ session('success') }}',
+            confirmButtonText: 'OK'
+        });
+    @endif
+
+    @if (session('error'))
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: '{{ session('error') }}',
+            confirmButtonText: 'Try Again'
+        });
+    @endif
+    });
+
+    function cancelSession(event, button) {
+      event.preventDefault();
+      const form = button.closest('form');
+      
+      Swal.fire({
+        title: 'Are you sure?',
+        text: "You want to cancel this session? This action cannot be undone!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, cancel it!'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit();
+        }
+      });
+    }
+  </script>
+
+</body>
+</html>
